@@ -25,6 +25,13 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Vercel puts the real client IP in x-forwarded-for (first entry in the chain).
+function getClientIp(req) {
+  const fwd = req.headers['x-forwarded-for'];
+  if (fwd) return String(fwd).split(',')[0].trim();
+  return req.socket?.remoteAddress || 'unknown';
+}
+
 // Admin-only: fires both like endpoints, 5 seconds apart (not simultaneously).
 async function callBothLikeApis(uid) {
   let primary;
@@ -48,8 +55,6 @@ async function callBothLikeApis(uid) {
   return { primary, bd };
 }
 
-const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
-
 export default async function handler(req, res) {
   const { action, uid } = req.method === 'GET' ? req.query : req.body;
 
@@ -60,8 +65,22 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'UID tidak valid.' });
   }
 
-  // info and visit are open to any logged-out visitor of the page (no limit needed)
+  // info and visit are open to any logged-out visitor of the page — throttle
+  // by IP (2s between requests) so no one can hammer the third-party APIs.
   if (action !== 'like') {
+    const ip = getClientIp(req);
+    const supabase = supabaseAdmin();
+    const { data: throttleResult, error: throttleError } = await supabase
+      .rpc('try_throttle', { p_ip_key: `${ip}:${action}`, p_min_interval_ms: 2000 })
+      .single();
+
+    if (!throttleError && !throttleResult.allowed) {
+      return res.status(429).json({
+        error: 'Terlalu cepat. Coba lagi sebentar.',
+        remainingMs: Number(throttleResult.remaining_ms),
+      });
+    }
+
     try {
       const r = await fetch(REAL_ENDPOINTS[action](uid));
       const data = await r.json();
@@ -99,35 +118,29 @@ export default async function handler(req, res) {
   const supabase = supabaseAdmin();
   const userId = userData.user.id;
 
-  const { data: lastLike } = await supabase
-    .from('like_logs')
-    .select('sent_at')
-    .eq('user_id', userId)
-    .order('sent_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Atomic check-and-record via a row-locking Postgres function — closes the
+  // race condition where two rapid requests could both pass the limit check
+  // before either had written its log row.
+  const { data: likeResult, error: likeCheckError } = await supabase
+    .rpc('try_record_like', { p_user_id: userId, p_target_uid: String(uid) })
+    .single();
 
-  if (lastLike) {
-    const elapsed = Date.now() - new Date(lastLike.sent_at).getTime();
-    if (elapsed < TWELVE_HOURS_MS) {
-      const remainingMs = TWELVE_HOURS_MS - elapsed;
-      const remainingHours = Math.floor(remainingMs / (60 * 60 * 1000));
-      const remainingMinutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
-      return res.status(429).json({
-        error: `Anda sudah mengirim like. Coba lagi dalam ${remainingHours} jam ${remainingMinutes} menit.`,
-        remainingMs,
-      });
-    }
+  if (likeCheckError) {
+    return res.status(500).json({ error: 'Gagal memeriksa limit like.' });
+  }
+
+  if (!likeResult.allowed) {
+    const remainingMs = Number(likeResult.remaining_ms);
+    const remainingHours = Math.floor(remainingMs / (60 * 60 * 1000));
+    const remainingMinutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
+    return res.status(429).json({
+      error: `Anda sudah mengirim like. Coba lagi dalam ${remainingHours} jam ${remainingMinutes} menit.`,
+      remainingMs,
+    });
   }
 
   try {
     const data = await callLikeApi(uid);
-
-    await supabase.from('like_logs').insert({
-      user_id: userId,
-      target_uid: String(uid),
-    });
-
     return res.status(200).json(data);
   } catch (err) {
     return res.status(502).json({ error: 'Gagal menghubungi layanan like.' });

@@ -6,7 +6,11 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>UID Tools</title>
+<title>Tools epep</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png">
+<link rel="apple-touch-icon" href="/favicon-192.png">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -553,8 +557,9 @@
     like: 'Mengirim like ke UID. Login diperlukan — dibatasi 1x per 12 jam per akun.',
   };
 
-  // In-memory session (per artifact rules: no localStorage/sessionStorage)
-  let session = null; // { access_token, refresh_token, displayName }
+  // Session persisted in localStorage so users don't have to log in every visit.
+  const SESSION_KEY = 'uidtools_session';
+  let session = loadSession();
   let currentTab = 'info';
   let currentAuthMode = 'login';
 
@@ -635,8 +640,26 @@
     }
   }
 
+  function loadSession() {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
   function setSession(s) {
     session = s;
+    try {
+      if (s) {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+      } else {
+        localStorage.removeItem(SESSION_KEY);
+      }
+    } catch {
+      // localStorage unavailable (private mode etc.) — session just won't persist
+    }
     renderAuthGate();
   }
 
@@ -917,6 +940,12 @@
 
       const res = await fetch(`/api/proxy?action=${currentTab}&uid=${encodeURIComponent(uid)}`, { headers });
       const data = await res.json();
+
+      if (res.status === 401 && session && !session.isAdmin) {
+        setSession(null);
+        showAuthError('Sesi Anda telah berakhir. Silakan masuk kembali.');
+        return;
+      }
 
       if (!res.ok) throw new Error(data.error || `Server merespons dengan status ${res.status}.`);
 
