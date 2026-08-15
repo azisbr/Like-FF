@@ -479,6 +479,31 @@
           <input type="password" id="loginPassword" placeholder="Password akun Anda">
         </div>
         <button class="primary" id="loginBtn">Masuk</button>
+        <button class="link-btn" id="showForgotBtn" type="button">Lupa password?</button>
+      </div>
+
+      <!-- FORGOT PASSWORD FORM -->
+      <div id="forgotForm" class="hidden">
+        <div class="field">
+          <label class="field-label">Username</label>
+          <input type="text" id="forgotUsername" placeholder="Username akun Anda">
+        </div>
+        <button class="primary" id="forgotRequestBtn">Kirim Kode ke Telegram</button>
+        <p class="hint">Kode reset akan dikirim ke Telegram yang terhubung dengan akun ini.</p>
+
+        <div id="forgotOtpBlock" class="hidden">
+          <div class="field" style="margin-top:14px;">
+            <label class="field-label">Kode OTP</label>
+            <input type="text" id="forgotOtpCode" placeholder="6 digit dari Telegram" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label class="field-label">Password Baru (min. 6)</label>
+            <input type="password" id="forgotNewPassword" placeholder="Password baru">
+          </div>
+          <button class="primary" id="forgotVerifyBtn">Ubah Password</button>
+        </div>
+
+        <button class="link-btn" id="hideForgotBtn" type="button">Kembali ke login</button>
       </div>
 
       <!-- REGISTER FORM -->
@@ -617,6 +642,7 @@
       currentAuthMode = tab.dataset.auth;
       document.getElementById('loginForm').classList.toggle('hidden', currentAuthMode !== 'login');
       document.getElementById('registerForm').classList.toggle('hidden', currentAuthMode !== 'register');
+      document.getElementById('forgotForm').classList.add('hidden');
       authResultZone.innerHTML = '';
     });
   });
@@ -766,6 +792,68 @@
         displayName: data.displayName || username,
       });
       authResultZone.innerHTML = '';
+    } catch (err) {
+      showAuthError(err.message);
+    }
+  });
+
+  // ---------- Forgot password ----------
+  document.getElementById('showForgotBtn').addEventListener('click', () => {
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('forgotForm').classList.remove('hidden');
+    authResultZone.innerHTML = '';
+  });
+
+  document.getElementById('hideForgotBtn').addEventListener('click', () => {
+    document.getElementById('forgotForm').classList.add('hidden');
+    document.getElementById('loginForm').classList.remove('hidden');
+    document.getElementById('forgotOtpBlock').classList.add('hidden');
+    authResultZone.innerHTML = '';
+  });
+
+  document.getElementById('forgotRequestBtn').addEventListener('click', async () => {
+    const username = document.getElementById('forgotUsername').value.trim();
+    if (!username) { showAuthError('Masukkan username.'); return; }
+
+    showAuthLoading('Mengirim kode...');
+    try {
+      const res = await fetch('/api/auth/forgot-password-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal mengirim kode.');
+      showAuthSuccess(data.message);
+      document.getElementById('forgotOtpBlock').classList.remove('hidden');
+    } catch (err) {
+      showAuthError(err.message);
+    }
+  });
+
+  document.getElementById('forgotVerifyBtn').addEventListener('click', async () => {
+    const username = document.getElementById('forgotUsername').value.trim();
+    const code = document.getElementById('forgotOtpCode').value.trim();
+    const newPassword = document.getElementById('forgotNewPassword').value;
+    if (!code || !newPassword) { showAuthError('Lengkapi kode OTP dan password baru.'); return; }
+
+    showAuthLoading('Memverifikasi...');
+    try {
+      const res = await fetch('/api/auth/forgot-password-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, code, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal mengubah password.');
+      showAuthSuccess(data.message);
+      document.getElementById('forgotOtpBlock').classList.add('hidden');
+      setTimeout(() => {
+        document.getElementById('forgotForm').classList.add('hidden');
+        document.getElementById('loginForm').classList.remove('hidden');
+        document.getElementById('loginUsername').value = username;
+        authResultZone.innerHTML = '';
+      }, 1500);
     } catch (err) {
       showAuthError(err.message);
     }
