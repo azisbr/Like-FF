@@ -250,6 +250,14 @@
 
   .hint { font-size: 12px; color: var(--text-faint); margin-top: 10px; line-height: 1.5; }
 
+  .auth-gate {
+    min-height: calc(100vh - 132px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .auth-gate .panel { width: 100%; }
+
   .auth-toggle {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -416,85 +424,89 @@
     </div>
   </header>
 
-  <!-- Logged-in account pill -->
-  <div class="account-pill hidden" id="accountPill">
-    <div class="who">masuk sebagai <b id="accountName">-</b></div>
-    <button id="logoutBtn">Keluar</button>
-  </div>
-
-  <!-- AUTH PANEL (shown when logged out and Like tab needs auth) -->
-  <div class="panel hidden" id="authPanel">
-    <div class="auth-toggle">
-      <div class="tab active" data-auth="login">Masuk</div>
-      <div class="tab" data-auth="register">Daftar</div>
-    </div>
-
-    <!-- LOGIN FORM -->
-    <div id="loginForm">
-      <div class="field">
-        <label class="field-label">Telegram ID</label>
-        <input type="text" id="loginTelegramId" placeholder="contoh: 123456789" inputmode="numeric">
+  <!-- AUTH GATE (shown until logged in) -->
+  <div class="auth-gate" id="authGate">
+    <div class="panel" id="authPanel">
+      <div class="auth-toggle">
+        <div class="tab active" data-auth="login">Masuk</div>
+        <div class="tab" data-auth="register">Daftar</div>
       </div>
-      <div class="field">
-        <label class="field-label">Password</label>
-        <input type="password" id="loginPassword" placeholder="Password akun Anda">
-      </div>
-      <button class="primary" id="loginRequestBtn">Kirim Kode ke Telegram</button>
 
-      <div id="loginOtpBlock" class="hidden">
-        <div class="field" style="margin-top:14px;">
-          <label class="field-label">Kode OTP</label>
-          <input type="text" id="loginOtpCode" placeholder="6 digit dari Telegram" inputmode="numeric">
+      <!-- LOGIN FORM -->
+      <div id="loginForm">
+        <div class="field">
+          <label class="field-label">Telegram ID</label>
+          <input type="text" id="loginTelegramId" placeholder="contoh: 123456789" inputmode="numeric">
         </div>
-        <button class="primary" id="loginVerifyBtn">Verifikasi &amp; Masuk</button>
-      </div>
-    </div>
-
-    <!-- REGISTER FORM -->
-    <div id="registerForm" class="hidden">
-      <div class="field">
-        <label class="field-label">Nama</label>
-        <input type="text" id="regName" placeholder="Nama tampilan">
-      </div>
-      <div class="field">
-        <label class="field-label">Telegram ID</label>
-        <input type="text" id="regTelegramId" placeholder="numeric ID, /start bot dulu" inputmode="numeric">
-      </div>
-      <div class="field">
-        <label class="field-label">Password (min. 6)</label>
-        <input type="password" id="regPassword" placeholder="Buat password">
-      </div>
-      <button class="primary" id="regRequestBtn">Kirim Kode ke Telegram</button>
-      <p class="hint">Buka bot Telegram, kirim <b>/start</b>, lalu masukkan Telegram ID numerik Anda di atas.</p>
-
-      <div id="regOtpBlock" class="hidden">
-        <div class="field" style="margin-top:14px;">
-          <label class="field-label">Kode OTP</label>
-          <input type="text" id="regOtpCode" placeholder="6 digit dari Telegram" inputmode="numeric">
+        <div class="field">
+          <label class="field-label">Password</label>
+          <input type="password" id="loginPassword" placeholder="Password akun Anda">
         </div>
-        <button class="primary" id="regVerifyBtn">Verifikasi &amp; Buat Akun</button>
+        <button class="primary" id="loginRequestBtn">Kirim Kode ke Telegram</button>
+
+        <div id="loginOtpBlock" class="hidden">
+          <div class="field" style="margin-top:14px;">
+            <label class="field-label">Kode OTP</label>
+            <input type="text" id="loginOtpCode" placeholder="6 digit dari Telegram" inputmode="numeric">
+          </div>
+          <button class="primary" id="loginVerifyBtn">Verifikasi &amp; Masuk</button>
+        </div>
       </div>
-    </div>
 
-    <div class="result-zone" id="authResultZone"></div>
+      <!-- REGISTER FORM -->
+      <div id="registerForm" class="hidden">
+        <div class="field">
+          <label class="field-label">Nama</label>
+          <input type="text" id="regName" placeholder="Nama tampilan">
+        </div>
+        <div class="field">
+          <label class="field-label">Telegram ID</label>
+          <input type="text" id="regTelegramId" placeholder="numeric ID, /start bot dulu" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label class="field-label">Password (min. 6)</label>
+          <input type="password" id="regPassword" placeholder="Buat password">
+        </div>
+        <button class="primary" id="regRequestBtn">Kirim Kode ke Telegram</button>
+        <p class="hint">Buka bot Telegram, kirim <b>/start</b>, lalu masukkan Telegram ID numerik Anda di atas.</p>
+
+        <div id="regOtpBlock" class="hidden">
+          <div class="field" style="margin-top:14px;">
+            <label class="field-label">Kode OTP</label>
+            <input type="text" id="regOtpCode" placeholder="6 digit dari Telegram" inputmode="numeric">
+          </div>
+          <button class="primary" id="regVerifyBtn">Verifikasi &amp; Buat Akun</button>
+        </div>
+      </div>
+
+      <div class="result-zone" id="authResultZone"></div>
+    </div>
   </div>
 
-  <!-- MAIN TOOL -->
-  <div class="tabs">
-    <div class="tab active" data-tab="info">Info Akun</div>
-    <div class="tab" data-tab="visit">Visit</div>
-    <div class="tab" data-tab="like">Like</div>
-  </div>
-
-  <div class="panel">
-    <label class="field-label" id="fieldLabel">Masukkan UID</label>
-    <div class="input-row">
-      <input type="text" id="uidInput" placeholder="contoh: 611337104" inputmode="numeric">
-      <button class="run" id="runBtn">Jalankan</button>
+  <!-- MAIN APP (shown only after login) -->
+  <div class="hidden" id="mainApp">
+    <!-- Logged-in account pill -->
+    <div class="account-pill" id="accountPill">
+      <div class="who">masuk sebagai <b id="accountName">-</b></div>
+      <button id="logoutBtn">Keluar</button>
     </div>
-    <p class="hint" id="hintText">Menampilkan nickname, level, EXP, likes, rank, dan info dasar lainnya.</p>
 
-    <div class="result-zone" id="resultZone"></div>
+    <div class="tabs">
+      <div class="tab active" data-tab="info">Info Akun</div>
+      <div class="tab" data-tab="visit">Visit</div>
+      <div class="tab" data-tab="like">Like</div>
+    </div>
+
+    <div class="panel">
+      <label class="field-label" id="fieldLabel">Masukkan UID</label>
+      <div class="input-row">
+        <input type="text" id="uidInput" placeholder="contoh: 611337104" inputmode="numeric">
+        <button class="run" id="runBtn">Jalankan</button>
+      </div>
+      <p class="hint" id="hintText">Menampilkan nickname, level, EXP, likes, rank, dan info dasar lainnya.</p>
+
+      <div class="result-zone" id="resultZone"></div>
+    </div>
   </div>
 
   <footer>build with quiet precision</footer>
@@ -528,7 +540,8 @@
   const runBtn = document.getElementById('runBtn');
   const resultZone = document.getElementById('resultZone');
   const hintText = document.getElementById('hintText');
-  const authPanel = document.getElementById('authPanel');
+  const authGate = document.getElementById('authGate');
+  const mainApp = document.getElementById('mainApp');
   const accountPill = document.getElementById('accountPill');
   const accountName = document.getElementById('accountName');
   const authResultZone = document.getElementById('authResultZone');
@@ -552,7 +565,6 @@
       currentTab = tab.dataset.tab;
       hintText.textContent = HINTS[currentTab];
       resultZone.innerHTML = '';
-      updateAuthVisibility();
     });
   });
 
@@ -567,24 +579,23 @@
     });
   });
 
-  function updateAuthVisibility() {
-    if (currentTab === 'like' && !session) {
-      authPanel.classList.remove('hidden');
+  function renderAuthGate() {
+    if (session) {
+      authGate.classList.add('hidden');
+      mainApp.classList.remove('hidden');
+      accountName.textContent = session.displayName || 'pengguna';
     } else {
-      authPanel.classList.add('hidden');
+      authGate.classList.remove('hidden');
+      mainApp.classList.add('hidden');
     }
   }
 
   function setSession(s) {
     session = s;
-    if (s) {
-      accountPill.classList.remove('hidden');
-      accountName.textContent = s.displayName || 'pengguna';
-    } else {
-      accountPill.classList.add('hidden');
-    }
-    updateAuthVisibility();
+    renderAuthGate();
   }
+
+  renderAuthGate();
 
   document.getElementById('logoutBtn').addEventListener('click', () => {
     setSession(null);
@@ -757,18 +768,12 @@
     const uid = uidInput.value.trim();
     if (!uid) { showError('Masukkan UID terlebih dahulu.'); return; }
 
-    if (currentTab === 'like' && !session) {
-      showError('Silakan masuk terlebih dahulu untuk mengirim like.');
-      updateAuthVisibility();
-      return;
-    }
-
     runBtn.disabled = true;
     showLoading();
 
     try {
       const headers = { 'Content-Type': 'application/json' };
-      if (currentTab === 'like' && session) headers['Authorization'] = `Bearer ${session.access_token}`;
+      if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
 
       const res = await fetch(`/api/proxy?action=${currentTab}&uid=${encodeURIComponent(uid)}`, { headers });
       const data = await res.json();
@@ -787,8 +792,6 @@
 
   runBtn.addEventListener('click', run);
   uidInput.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
-
-  updateAuthVisibility();
 
   // ---------- Music player ----------
   const audio = document.getElementById('bgAudio');
