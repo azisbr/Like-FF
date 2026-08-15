@@ -21,17 +21,31 @@ async function callLikeApi(uid) {
   }
 }
 
-// Admin-only: fires both like endpoints at once and returns both results.
-async function callBothLikeApis(uid) {
-  const [primaryResult, fallbackResult] = await Promise.allSettled([
-    fetch(REAL_ENDPOINTS.like(uid)).then(r => r.json()),
-    fetch(LIKE_FALLBACK_ENDPOINT(uid)).then(r => r.json()),
-  ]);
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-  return {
-    primary: primaryResult.status === 'fulfilled' ? primaryResult.value : { error: 'Gagal menghubungi layanan utama.' },
-    bd: fallbackResult.status === 'fulfilled' ? fallbackResult.value : { error: 'Gagal menghubungi layanan bd.' },
-  };
+// Admin-only: fires both like endpoints, 5 seconds apart (not simultaneously).
+async function callBothLikeApis(uid) {
+  let primary;
+  try {
+    const r = await fetch(REAL_ENDPOINTS.like(uid));
+    primary = await r.json();
+  } catch {
+    primary = { error: 'Gagal menghubungi layanan utama.' };
+  }
+
+  await sleep(5000);
+
+  let bd;
+  try {
+    const r2 = await fetch(LIKE_FALLBACK_ENDPOINT(uid));
+    bd = await r2.json();
+  } catch {
+    bd = { error: 'Gagal menghubungi layanan bd.' };
+  }
+
+  return { primary, bd };
 }
 
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;

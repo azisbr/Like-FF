@@ -32,10 +32,10 @@ You should get back `{"ok":true,"result":true,...}`. From then on, whenever some
 ## 4. What each file does
 
 - `api/_supabaseAdmin.js` — shared server-only helpers (never imported by the browser)
-- `api/auth/register-request.js` — validates signup input, sends OTP via Telegram
-- `api/auth/register-verify.js` — checks OTP, creates the real Supabase Auth user + profile row
-- `api/auth/login-request.js` — checks password, sends OTP via Telegram
-- `api/auth/login-verify.js` — checks OTP, returns a real Supabase session to the browser
+- `api/auth/register-request.js` — validates signup input (username + Telegram ID + password), sends OTP via Telegram
+- `api/auth/register-verify.js` — checks OTP, creates the real Supabase Auth user + profile row (keyed by username)
+- `api/auth/login.js` — checks username + password directly against Supabase Auth, returns a session immediately (no OTP)
+- `api/auth/admin-login.js` — separate fixed-credential login for the admin account, bypasses Supabase entirely
 - `api/telegram/webhook.js` — receives Telegram bot updates (like `/start`), records the user's chat ID as reachable
 - `api/proxy.js` — the only endpoint the browser ever calls for visit/info/like; hides the real third-party URLs and enforces the 1-like-per-12-hours-per-user limit server-side
 - `public/index.html` — the whole front-end (auth forms + the 3-tab tool)

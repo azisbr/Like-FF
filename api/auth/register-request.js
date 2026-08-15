@@ -1,10 +1,13 @@
-import { supabaseAdmin, telegramIdToInternalEmail, generateOtp, sendTelegramMessage } from '../_supabaseAdmin.js';
+import { supabaseAdmin, usernameToInternalEmail, generateOtp, sendTelegramMessage } from '../_supabaseAdmin.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
 
-  const { telegramId, displayName, password } = req.body || {};
+  const { username, telegramId, displayName, password } = req.body || {};
 
+  if (!username || !/^[a-zA-Z0-9_]{3,20}$/.test(String(username))) {
+    return res.status(400).json({ error: 'Username 3-20 karakter, hanya huruf/angka/underscore.' });
+  }
   if (!telegramId || !/^\d+$/.test(String(telegramId))) {
     return res.status(400).json({ error: 'Telegram ID harus berupa angka.' });
   }
@@ -16,7 +19,18 @@ export default async function handler(req, res) {
   }
 
   const supabase = supabaseAdmin();
-  const email = telegramIdToInternalEmail(telegramId);
+  const usernameLower = String(username).toLowerCase();
+
+  // Check if this username is already taken
+  const { data: existingUsername } = await supabase
+    .from('profiles')
+    .select('username')
+    .eq('username', usernameLower)
+    .maybeSingle();
+
+  if (existingUsername) {
+    return res.status(409).json({ error: 'Username ini sudah dipakai. Pilih yang lain.' });
+  }
 
   // Check if this telegram id is already registered
   const { data: existingProfile } = await supabase
@@ -26,7 +40,7 @@ export default async function handler(req, res) {
     .maybeSingle();
 
   if (existingProfile) {
-    return res.status(409).json({ error: 'Telegram ID ini sudah terdaftar. Silakan login.' });
+    return res.status(409).json({ error: 'Telegram ID ini sudah terdaftar dengan akun lain.' });
   }
 
   // Make sure this chat_id has started the bot — otherwise Telegram will reject the DM.
@@ -51,6 +65,7 @@ export default async function handler(req, res) {
     telegram_id: String(telegramId),
     code: otp,
     purpose: 'register',
+    pending_username: usernameLower,
     pending_display_name: displayName.trim(),
     pending_plain_password: password,
     expires_at: expiresAt,

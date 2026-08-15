@@ -13,9 +13,9 @@ export function supabaseAdmin() {
 }
 
 // Internal dummy email format used since Supabase Auth requires an email.
-// The user never sees or uses this — they only ever type their Telegram ID.
-export function telegramIdToInternalEmail(telegramId) {
-  return `tg_${telegramId}@users.internal`;
+// The user never sees or uses this — they only ever type their username.
+export function usernameToInternalEmail(username) {
+  return `user_${String(username).toLowerCase()}@users.internal`;
 }
 
 export function generateOtp() {

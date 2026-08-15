@@ -361,6 +361,28 @@
   .stat-value.accent { color: var(--accent); }
   .stat-value.error-text { color: var(--error); }
 
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 12px 18px 8px; border-top: 1px solid var(--border);
+  }
+  .info-card + .info-card { margin-top: 10px; }
+  .signature-box {
+    padding: 12px 18px; font-size: 13px; color: var(--text-faint);
+    white-space: pre-wrap; word-break: break-word; line-height: 1.5;
+    border-top: 1px solid var(--border);
+  }
+  .outfit-grid {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;
+    padding: 12px 18px; border-top: 1px solid var(--border);
+  }
+  .outfit-grid img {
+    width: 100%; aspect-ratio: 1; object-fit: contain;
+    background: rgba(255,255,255,0.03); border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
   .delta-row {
     padding: 14px 18px; display: flex; align-items: center; justify-content: center;
     gap: 14px; font-family: 'JetBrains Mono', monospace;
@@ -443,22 +465,14 @@
       <!-- LOGIN FORM -->
       <div id="loginForm">
         <div class="field">
-          <label class="field-label">Telegram ID</label>
-          <input type="text" id="loginTelegramId" placeholder="contoh: 123456789 atau username">
+          <label class="field-label">Username</label>
+          <input type="text" id="loginUsername" placeholder="Username Anda">
         </div>
         <div class="field">
           <label class="field-label">Password</label>
           <input type="password" id="loginPassword" placeholder="Password akun Anda">
         </div>
-        <button class="primary" id="loginRequestBtn">Kirim Kode ke Telegram</button>
-
-        <div id="loginOtpBlock" class="hidden">
-          <div class="field" style="margin-top:14px;">
-            <label class="field-label">Kode OTP</label>
-            <input type="text" id="loginOtpCode" placeholder="6 digit dari Telegram" inputmode="numeric">
-          </div>
-          <button class="primary" id="loginVerifyBtn">Verifikasi &amp; Masuk</button>
-        </div>
+        <button class="primary" id="loginBtn">Masuk</button>
       </div>
 
       <!-- REGISTER FORM -->
@@ -466,6 +480,10 @@
         <div class="field">
           <label class="field-label">Nama</label>
           <input type="text" id="regName" placeholder="Nama tampilan">
+        </div>
+        <div class="field">
+          <label class="field-label">Username</label>
+          <input type="text" id="regUsername" placeholder="Username untuk login nanti">
         </div>
         <div class="field">
           <label class="field-label">Telegram ID</label>
@@ -476,7 +494,7 @@
           <input type="password" id="regPassword" placeholder="Buat password">
         </div>
         <button class="primary" id="regRequestBtn">Kirim Kode ke Telegram</button>
-        <p class="hint">Buka bot Telegram, kirim <b>/start</b>, lalu masukkan Telegram ID numerik Anda di atas.</p>
+        <p class="hint">Buka bot Telegram, kirim <b>/start</b>, lalu masukkan Telegram ID numerik Anda di atas. Username dipakai untuk login nanti.</p>
 
         <div id="regOtpBlock" class="hidden">
           <div class="field" style="margin-top:14px;">
@@ -561,6 +579,16 @@
     if (n === undefined || n === null) return '-';
     return Number(n).toLocaleString('id-ID');
   }
+  function fmtDate(unixSeconds) {
+    if (!unixSeconds) return '-';
+    const d = new Date(Number(unixSeconds) * 1000);
+    if (isNaN(d.getTime())) return '-';
+    const pad = (x) => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+  function outfitIconUrl(id) {
+    return `https://cdn.jsdelivr.net/gh/ShahGCreator/icon@main/PNG/${id}.png`;
+  }
   function esc(s) {
     if (s === undefined || s === null) return '-';
     const div = document.createElement('div');
@@ -629,10 +657,11 @@
   // ---------- Register ----------
   document.getElementById('regRequestBtn').addEventListener('click', async () => {
     const displayName = document.getElementById('regName').value.trim();
+    const username = document.getElementById('regUsername').value.trim();
     const telegramId = document.getElementById('regTelegramId').value.trim();
     const password = document.getElementById('regPassword').value;
 
-    if (!displayName || !telegramId || !password) {
+    if (!displayName || !username || !telegramId || !password) {
       showAuthError('Lengkapi semua kolom terlebih dahulu.');
       return;
     }
@@ -642,7 +671,7 @@
       const res = await fetch('/api/auth/register-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ displayName, telegramId, password }),
+        body: JSON.stringify({ displayName, username, telegramId, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal mengirim kode.');
@@ -655,6 +684,7 @@
 
   document.getElementById('regVerifyBtn').addEventListener('click', async () => {
     const telegramId = document.getElementById('regTelegramId').value.trim();
+    const username = document.getElementById('regUsername').value.trim();
     const code = document.getElementById('regOtpCode').value.trim();
     if (!code) { showAuthError('Masukkan kode OTP.'); return; }
 
@@ -670,17 +700,17 @@
       showAuthSuccess('Akun berhasil dibuat. Silakan masuk.');
       // switch to login tab
       document.querySelector('.tab[data-auth="login"]').click();
-      document.getElementById('loginTelegramId').value = telegramId;
+      document.getElementById('loginUsername').value = username;
     } catch (err) {
       showAuthError(err.message);
     }
   });
 
-  // ---------- Login ----------
-  document.getElementById('loginRequestBtn').addEventListener('click', async () => {
-    const telegramId = document.getElementById('loginTelegramId').value.trim();
+  // ---------- Login (no OTP — username + password only) ----------
+  document.getElementById('loginBtn').addEventListener('click', async () => {
+    const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value;
-    if (!telegramId || !password) { showAuthError('Lengkapi Telegram ID dan password.'); return; }
+    if (!username || !password) { showAuthError('Lengkapi username dan password.'); return; }
 
     showAuthLoading('Memeriksa kredensial...');
 
@@ -689,52 +719,30 @@
       const adminRes = await fetch('/api/auth/admin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: telegramId, password }),
+        body: JSON.stringify({ username, password }),
       });
       if (adminRes.ok) {
         const adminData = await adminRes.json();
-        setSession({ access_token: adminData.token, displayName: telegramId, isAdmin: true });
+        setSession({ access_token: adminData.token, displayName: username, isAdmin: true });
         authResultZone.innerHTML = '';
         return;
       }
     } catch {
-      // ignore, fall through to normal OTP flow
+      // ignore, fall through to normal login
     }
 
     try {
-      const res = await fetch('/api/auth/login-request', {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telegramId, password }),
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Gagal.');
-      showAuthSuccess(data.message);
-      document.getElementById('loginOtpBlock').classList.remove('hidden');
-    } catch (err) {
-      showAuthError(err.message);
-    }
-  });
-
-  document.getElementById('loginVerifyBtn').addEventListener('click', async () => {
-    const telegramId = document.getElementById('loginTelegramId').value.trim();
-    const password = document.getElementById('loginPassword').value;
-    const code = document.getElementById('loginOtpCode').value.trim();
-    if (!code) { showAuthError('Masukkan kode OTP.'); return; }
-
-    showAuthLoading('Memverifikasi...');
-    try {
-      const res = await fetch('/api/auth/login-verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telegramId, password, code }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Verifikasi gagal.');
+      if (!res.ok) throw new Error(data.error || 'Login gagal.');
       setSession({
         access_token: data.session.access_token,
         refresh_token: data.session.refresh_token,
-        displayName: telegramId,
+        displayName: data.displayName || username,
       });
       authResultZone.innerHTML = '';
     } catch (err) {
@@ -748,24 +756,105 @@
 
   function renderInfo(d) {
     const b = d.basicInfo || {};
-    resultZone.innerHTML = `
-      <div class="card">
+    const p = d.profileInfo || {};
+    const pet = d.petInfo || {};
+    const social = d.socialInfo || {};
+    const clan = d.clanBasicInfo || {};
+    const captain = d.captainBasicInfo || {};
+
+    let html = `
+      <div class="card info-card">
         <div class="card-head">
           <div class="card-name">${esc(b.nickname)}</div>
           <div class="card-region">${esc(b.region)}</div>
         </div>
+
+        <div class="section-title">Account Basic Info</div>
         <div class="stat-grid">
+          <div class="stat"><div class="stat-label">UID</div><div class="stat-value">${esc(b.accountId)}</div></div>
           <div class="stat"><div class="stat-label">Level</div><div class="stat-value">${fmt(b.level)}</div></div>
           <div class="stat"><div class="stat-label">EXP</div><div class="stat-value">${fmt(b.exp)}</div></div>
           <div class="stat"><div class="stat-label">Likes</div><div class="stat-value accent">${fmt(b.liked)}</div></div>
-          <div class="stat"><div class="stat-label">Account ID</div><div class="stat-value">${esc(b.accountId)}</div></div>
           <div class="stat"><div class="stat-label">BR Rank</div><div class="stat-value">${fmt(b.rank)}</div></div>
           <div class="stat"><div class="stat-label">CS Rank</div><div class="stat-value">${fmt(b.csRank)}</div></div>
           <div class="stat"><div class="stat-label">BR Max Rank</div><div class="stat-value">${fmt(b.maxRank)}</div></div>
           <div class="stat"><div class="stat-label">CS Max Rank</div><div class="stat-value">${fmt(b.csMaxRank)}</div></div>
         </div>
+
+        <div class="section-title">Account Activity</div>
+        <div class="stat-grid">
+          <div class="stat"><div class="stat-label">Release Version</div><div class="stat-value">${esc(b.releaseVersion)}</div></div>
+          <div class="stat"><div class="stat-label">BP Badges</div><div class="stat-value">${fmt(b.badgeCnt)}</div></div>
+          <div class="stat"><div class="stat-label">Honor Score</div><div class="stat-value">${fmt(d.creditScoreInfo?.creditScore)}</div></div>
+          <div class="stat"><div class="stat-label">Prime Level</div><div class="stat-value">${fmt(b.primeInfo?.primeLevel)}</div></div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat" style="border-right:1px solid var(--border);"><div class="stat-label">Created At</div><div class="stat-value" style="font-size:13px;">${fmtDate(b.createAt)}</div></div>
+          <div class="stat"><div class="stat-label">Last Login</div><div class="stat-value" style="font-size:13px;">${fmtDate(b.lastLoginAt)}</div></div>
+        </div>
+
+        ${social.signature ? `<div class="section-title">Signature</div><div class="signature-box">${esc(stripColorTags(social.signature))}</div>` : ''}
+
+        <div class="section-title">Account Overview</div>
+        ${(b.headPic || p.avatarId) ? `
+          <div class="outfit-grid" style="grid-template-columns: repeat(4, 1fr); max-width: 120px;">
+            <img src="${outfitIconUrl(b.headPic || p.avatarId)}" loading="lazy" alt="avatar" onerror="this.style.display='none'">
+          </div>` : ''}
+        <div class="stat-grid">
+          <div class="stat"><div class="stat-label">Avatar ID</div><div class="stat-value">${fmt(b.headPic || p.avatarId)}</div></div>
+          <div class="stat"><div class="stat-label">Title ID</div><div class="stat-value">${b.title ? fmt(b.title) : 'Not found'}</div></div>
+        </div>
+        ${Array.isArray(p.clothes) && p.clothes.length ? `
+          <div class="section-title">Equipped Outfits</div>
+          <div class="outfit-grid">
+            ${p.clothes.map(id => `<img src="${outfitIconUrl(id)}" loading="lazy" alt="${id}" title="${id}" onerror="this.style.opacity=0.15">`).join('')}
+          </div>` : ''}
       </div>`;
+
+    if (pet && pet.id) {
+      html += `
+        <div class="card info-card">
+          <div class="section-title" style="border-top:none;">Pet Details</div>
+          <div class="stat-grid">
+            <div class="stat"><div class="stat-label">Equipped?</div><div class="stat-value">${pet.isSelected ? 'Yes' : 'No'}</div></div>
+            <div class="stat"><div class="stat-label">Pet Name</div><div class="stat-value">${esc(pet.name)}</div></div>
+            <div class="stat"><div class="stat-label">Pet Level</div><div class="stat-value">${fmt(pet.level)}</div></div>
+            <div class="stat"><div class="stat-label">Pet EXP</div><div class="stat-value">${fmt(pet.exp)}</div></div>
+          </div>
+        </div>`;
+    }
+
+    if (clan && clan.clanName) {
+      html += `
+        <div class="card info-card">
+          <div class="section-title" style="border-top:none;">Guild Info</div>
+          <div class="stat-grid">
+            <div class="stat"><div class="stat-label">Guild Name</div><div class="stat-value" style="font-size:14px;">${esc(clan.clanName)}</div></div>
+            <div class="stat"><div class="stat-label">Guild ID</div><div class="stat-value">${esc(clan.clanId)}</div></div>
+            <div class="stat"><div class="stat-label">Guild Level</div><div class="stat-value">${fmt(clan.clanLevel)}</div></div>
+            <div class="stat"><div class="stat-label">Members</div><div class="stat-value">${fmt(clan.memberNum)}/${fmt(clan.capacity)}</div></div>
+          </div>
+          ${captain.nickname ? `
+          <div class="section-title">Leader Info</div>
+          <div class="stat-grid">
+            <div class="stat"><div class="stat-label">Leader Name</div><div class="stat-value" style="font-size:14px;">${esc(captain.nickname)}</div></div>
+            <div class="stat"><div class="stat-label">Leader UID</div><div class="stat-value">${esc(captain.accountId)}</div></div>
+            <div class="stat"><div class="stat-label">Leader Level</div><div class="stat-value">${fmt(captain.level)}</div></div>
+            <div class="stat"><div class="stat-label">BR Rank</div><div class="stat-value">${fmt(captain.rank)}</div></div>
+            <div class="stat"><div class="stat-label">CS Rank</div><div class="stat-value">${fmt(captain.csRank)}</div></div>
+            <div class="stat"><div class="stat-label">Last Login</div><div class="stat-value" style="font-size:13px;">${fmtDate(captain.lastLoginAt)}</div></div>
+          </div>` : ''}
+        </div>`;
+    }
+
+    resultZone.innerHTML = html;
   }
+
+  // Free Fire signatures use [HEXCOLOR] tags for inline color — strip them for plain display.
+  function stripColorTags(s) {
+    return String(s).replace(/\[[0-9A-Fa-f]{6}\]/g, '').replace(/\[b\]/gi, '').replace(/\[\/?[a-z]*\]/gi, '');
+  }
+
 
   function renderVisit(d) {
     const ok = Number(d.fail) === 0;
