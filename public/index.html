@@ -389,6 +389,50 @@
     border: 1px solid var(--border);
   }
 
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(255,255,255,0.06);
+    padding: 1px 5px; border-radius: 4px; font-size: 11px;
+  }
+
+  .jwt-toolbar {
+    display: flex; gap: 8px; align-items: center; justify-content: space-between;
+    padding: 12px 18px; border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .jwt-toolbar .switch-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--text-faint);
+  }
+  .jwt-toolbar .actions { display: flex; gap: 8px; }
+  .jwt-toolbar button.small {
+    font-size: 11px; padding: 6px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg-input); color: var(--text);
+    cursor: pointer;
+  }
+  .jwt-toolbar button.small:hover { border-color: var(--accent); color: var(--accent); }
+
+  .jwt-item {
+    padding: 10px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .jwt-item:last-child { border-bottom: none; }
+  .jwt-item .jwt-uid {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-faint); flex-shrink: 0; min-width: 90px;
+  }
+  .jwt-item .jwt-token-text {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text); overflow-wrap: anywhere; flex: 1;
+  }
+  .jwt-item .jwt-token-text.error-text { color: var(--error); }
+  .jwt-item button.copy-one {
+    flex-shrink: 0; font-size: 10px; padding: 4px 8px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg-input); color: var(--text-faint);
+    cursor: pointer;
+  }
+  .jwt-item button.copy-one:hover { border-color: var(--accent); color: var(--accent); }
+
   .delta-row {
     padding: 14px 18px; display: flex; align-items: center; justify-content: center;
     gap: 14px; font-family: 'JetBrains Mono', monospace;
@@ -548,9 +592,10 @@
       <div class="tab active" data-tab="info">Info Akun</div>
       <div class="tab" data-tab="visit">Visit</div>
       <div class="tab" data-tab="like">Like</div>
+      <div class="tab" data-tab="jwt">JWT</div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="standardPanel">
       <label class="field-label" id="fieldLabel">Masukkan UID</label>
       <div class="input-row">
         <input type="text" id="uidInput" placeholder="contoh: 611337104" inputmode="numeric">
@@ -559,6 +604,39 @@
       <p class="hint" id="hintText">Menampilkan nickname, level, EXP, likes, rank, dan info dasar lainnya.</p>
 
       <div class="result-zone" id="resultZone"></div>
+    </div>
+
+    <!-- JWT PANEL -->
+    <div class="panel hidden" id="jwtPanel">
+      <div class="auth-toggle">
+        <div class="tab active" data-jwtmode="single">Satu Akun</div>
+        <div class="tab" data-jwtmode="bulk">Bulk (File)</div>
+      </div>
+
+      <!-- Single mode -->
+      <div id="jwtSingleForm">
+        <div class="field">
+          <label class="field-label">UID</label>
+          <input type="text" id="jwtUid" placeholder="contoh: 6435562946" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label class="field-label">Password</label>
+          <input type="text" id="jwtPassword" placeholder="Password akun target">
+        </div>
+        <button class="run" id="jwtSingleBtn" style="width:100%;">Ambil JWT</button>
+      </div>
+
+      <!-- Bulk mode -->
+      <div id="jwtBulkForm" class="hidden">
+        <div class="field">
+          <label class="field-label">Upload File (.txt atau .json)</label>
+          <input type="file" id="jwtFileInput" accept=".txt,.json">
+        </div>
+        <p class="hint">Format .txt: satu baris <code>uid:password</code>. Format .json: array berisi objek dengan field <code>uid</code> dan <code>password</code>. File besar otomatis diproses per-batch (60 akun/batch) — hasil tampil bertahap seiring tiap batch selesai.</p>
+        <button class="run" id="jwtBulkBtn" style="width:100%;">Proses Semua</button>
+      </div>
+
+      <div class="result-zone" id="jwtResultZone"></div>
     </div>
   </div>
 
@@ -624,14 +702,25 @@
     return div.innerHTML;
   }
 
+  const standardPanel = document.getElementById('standardPanel');
+  const jwtPanel = document.getElementById('jwtPanel');
+
   // ---------- Tab switching ----------
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       tabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       currentTab = tab.dataset.tab;
-      hintText.textContent = HINTS[currentTab];
       resultZone.innerHTML = '';
+
+      if (currentTab === 'jwt') {
+        standardPanel.classList.add('hidden');
+        jwtPanel.classList.remove('hidden');
+      } else {
+        jwtPanel.classList.add('hidden');
+        standardPanel.classList.remove('hidden');
+        hintText.textContent = HINTS[currentTab];
+      }
     });
   });
 
@@ -1019,6 +1108,7 @@
     const uid = uidInput.value.trim();
     if (!uid) { showError('Masukkan UID terlebih dahulu.'); return; }
 
+    const requestedTab = currentTab; // snapshot — the user may switch tabs before this resolves
     runBtn.disabled = true;
     showLoading();
 
@@ -1026,8 +1116,12 @@
       const headers = { 'Content-Type': 'application/json' };
       if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
 
-      const res = await fetch(`/api/proxy?action=${currentTab}&uid=${encodeURIComponent(uid)}`, { headers });
+      const res = await fetch(`/api/proxy?action=${requestedTab}&uid=${encodeURIComponent(uid)}`, { headers });
       const data = await res.json();
+
+      // If the user navigated to a different tab while this was in flight,
+      // discard the result instead of rendering it into the wrong panel.
+      if (currentTab !== requestedTab) return;
 
       if (res.status === 401 && session && !session.isAdmin) {
         setSession(null);
@@ -1037,18 +1131,245 @@
 
       if (!res.ok) throw new Error(data.error || `Server merespons dengan status ${res.status}.`);
 
-      if (currentTab === 'info') renderInfo(data);
-      else if (currentTab === 'visit') renderVisit(data);
-      else if (currentTab === 'like') renderLike(data);
+      if (requestedTab === 'info') renderInfo(data);
+      else if (requestedTab === 'visit') renderVisit(data);
+      else if (requestedTab === 'like') renderLike(data);
     } catch (err) {
+      if (currentTab !== requestedTab) return; // stale error from an abandoned tab — ignore
       showError(err.message);
     } finally {
-      runBtn.disabled = false;
+      if (currentTab === requestedTab) runBtn.disabled = false;
     }
   }
 
   runBtn.addEventListener('click', run);
   uidInput.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+
+  // ---------- JWT tab ----------
+  let jwtMode = 'single';
+  let jwtShowPairs = false; // toggle: false = JWT-only list, true = UID + JWT pairs
+  let lastJwtResults = [];
+
+  const jwtModeTabs = document.querySelectorAll('.tab[data-jwtmode]');
+  const jwtSingleForm = document.getElementById('jwtSingleForm');
+  const jwtBulkForm = document.getElementById('jwtBulkForm');
+  const jwtResultZone = document.getElementById('jwtResultZone');
+
+  jwtModeTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      jwtModeTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      jwtMode = tab.dataset.jwtmode;
+      jwtSingleForm.classList.toggle('hidden', jwtMode !== 'single');
+      jwtBulkForm.classList.toggle('hidden', jwtMode !== 'bulk');
+      jwtResultZone.innerHTML = '';
+    });
+  });
+
+  function jwtAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
+    return headers;
+  }
+
+  document.getElementById('jwtSingleBtn').addEventListener('click', async () => {
+    const uid = document.getElementById('jwtUid').value.trim();
+    const password = document.getElementById('jwtPassword').value.trim();
+    if (!uid || !password) {
+      jwtResultZone.innerHTML = `<div class="status-line error">Isi UID dan password terlebih dahulu.</div>`;
+      return;
+    }
+
+    const btn = document.getElementById('jwtSingleBtn');
+    btn.disabled = true;
+    jwtResultZone.innerHTML = `<div class="status-line loading">Mengambil token...</div>`;
+
+    try {
+      const res = await fetch('/api/jwt', {
+        method: 'POST',
+        headers: jwtAuthHeaders(),
+        body: JSON.stringify({ mode: 'single', uid, password }),
+      });
+      const data = await res.json();
+
+      if (res.status === 401 && session && !session.isAdmin) {
+        setSession(null);
+        jwtResultZone.innerHTML = `<div class="status-line error">Sesi berakhir. Silakan masuk kembali.</div>`;
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'Gagal.');
+
+      lastJwtResults = [data];
+      renderJwtResults();
+    } catch (err) {
+      jwtResultZone.innerHTML = `<div class="status-line error">${esc(err.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Mirrors the server-side parser so we know how many entries exist before
+  // splitting into batches — keeps the "max 60 per request" limit invisible to the user.
+  function parseBulkInputClient(raw) {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        const arr = Array.isArray(parsed) ? parsed : [parsed];
+        return arr
+          .map(item => ({ uid: String(item.uid || '').trim(), password: String(item.password || '').trim() }))
+          .filter(item => item.uid && item.password);
+      } catch {
+        // fall through
+      }
+    }
+
+    return trimmed.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+      const idx = line.indexOf(':');
+      if (idx === -1) return null;
+      return { uid: line.slice(0, idx).trim(), password: line.slice(idx + 1).trim() };
+    }).filter(item => item && item.uid && item.password);
+  }
+
+  const JWT_BATCH_SIZE = 60;
+
+  document.getElementById('jwtBulkBtn').addEventListener('click', async () => {
+    const fileInput = document.getElementById('jwtFileInput');
+    const file = fileInput.files?.[0];
+    if (!file) {
+      jwtResultZone.innerHTML = `<div class="status-line error">Pilih file .txt atau .json terlebih dahulu.</div>`;
+      return;
+    }
+
+    const btn = document.getElementById('jwtBulkBtn');
+    btn.disabled = true;
+
+    const rawText = await file.text();
+    const entries = parseBulkInputClient(rawText);
+
+    if (!entries.length) {
+      jwtResultZone.innerHTML = `<div class="status-line error">Tidak ada UID:password yang valid ditemukan di file.</div>`;
+      btn.disabled = false;
+      return;
+    }
+
+    const batches = [];
+    for (let i = 0; i < entries.length; i += JWT_BATCH_SIZE) {
+      batches.push(entries.slice(i, i + JWT_BATCH_SIZE));
+    }
+
+    lastJwtResults = [];
+    let sessionExpired = false;
+
+    for (let b = 0; b < batches.length; b++) {
+      jwtResultZone.innerHTML = `<div class="status-line loading">Memproses batch ${b + 1}/${batches.length} (${lastJwtResults.length}/${entries.length} akun selesai)...</div>`;
+
+      const bulkText = batches[b].map(e => `${e.uid}:${e.password}`).join('\n');
+
+      try {
+        const res = await fetch('/api/jwt', {
+          method: 'POST',
+          headers: jwtAuthHeaders(),
+          body: JSON.stringify({ mode: 'bulk', bulkText }),
+        });
+        const data = await res.json();
+
+        if (res.status === 401 && session && !session.isAdmin) {
+          setSession(null);
+          sessionExpired = true;
+          break;
+        }
+        if (!res.ok) throw new Error(data.error || 'Gagal memproses batch.');
+
+        lastJwtResults = lastJwtResults.concat(data.results);
+        renderJwtResults(); // show progress as each batch lands
+      } catch (err) {
+        lastJwtResults = lastJwtResults.concat(
+          batches[b].map(e => ({ uid: e.uid, ok: false, error: err.message }))
+        );
+        renderJwtResults();
+      }
+    }
+
+    btn.disabled = false;
+
+    if (sessionExpired) {
+      jwtResultZone.innerHTML = `<div class="status-line error">Sesi berakhir di tengah proses. Hasil sebelumnya tetap tersimpan di bawah — silakan masuk kembali untuk melanjutkan sisanya.</div>` + jwtResultZone.innerHTML;
+    }
+  });
+
+  function renderJwtResults() {
+    if (!lastJwtResults.length) { jwtResultZone.innerHTML = ''; return; }
+
+    const okCount = lastJwtResults.filter(r => r.ok).length;
+    const toolbar = `
+      <div class="jwt-toolbar">
+        <label class="switch-label">
+          <input type="checkbox" id="jwtPairToggle" ${jwtShowPairs ? 'checked' : ''}>
+          Tampilkan UID + JWT
+        </label>
+        <div class="actions">
+          <button class="small" id="jwtCopyAllBtn">Salin Semua</button>
+          <button class="small" id="jwtDownloadBtn">Download jwt.txt</button>
+        </div>
+      </div>
+      <div class="status-line" style="padding:8px 18px 0; font-size:12px; color:var(--text-faint);">
+        ${okCount}/${lastJwtResults.length} berhasil
+      </div>`;
+
+    const items = lastJwtResults.map(r => {
+      if (!r.ok) {
+        return `<div class="jwt-item"><div class="jwt-uid">${esc(r.uid)}</div><div class="jwt-token-text error-text">${esc(r.error)}</div></div>`;
+      }
+      const display = jwtShowPairs ? `${r.uid}:${r.token}` : r.token;
+      return `
+        <div class="jwt-item">
+          ${jwtShowPairs ? `<div class="jwt-uid">${esc(r.uid)}</div>` : ''}
+          <div class="jwt-token-text">${esc(r.token)}</div>
+          <button class="copy-one" data-copy="${esc(display)}">Salin</button>
+        </div>`;
+    }).join('');
+
+    jwtResultZone.innerHTML = toolbar + `<div>${items}</div>`;
+
+    document.getElementById('jwtPairToggle').addEventListener('change', (e) => {
+      jwtShowPairs = e.target.checked;
+      renderJwtResults();
+    });
+
+    document.getElementById('jwtCopyAllBtn').addEventListener('click', () => {
+      const text = lastJwtResults
+        .filter(r => r.ok)
+        .map(r => jwtShowPairs ? `${r.uid}:${r.token}` : r.token)
+        .join('\n');
+      navigator.clipboard.writeText(text).catch(() => {});
+    });
+
+    document.getElementById('jwtDownloadBtn').addEventListener('click', () => {
+      const text = lastJwtResults
+        .filter(r => r.ok)
+        .map(r => jwtShowPairs ? `${r.uid}:${r.token}` : r.token)
+        .join('\n');
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'jwt.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    jwtResultZone.querySelectorAll('.copy-one').forEach(btn => {
+      btn.addEventListener('click', () => {
+        navigator.clipboard.writeText(btn.dataset.copy).catch(() => {});
+        const original = btn.textContent;
+        btn.textContent = 'Tersalin';
+        setTimeout(() => { btn.textContent = original; }, 1200);
+      });
+    });
+  }
 
   // ---------- Music player ----------
   const audio = document.getElementById('bgAudio');

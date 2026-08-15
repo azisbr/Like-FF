@@ -3,6 +3,9 @@
   "functions": {
     "api/proxy.js": {
       "maxDuration": 30
+    },
+    "api/jwt.js": {
+      "maxDuration": 60
     }
   },
   "headers": [

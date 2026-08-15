@@ -73,6 +73,7 @@ Harus balik `{"ok":true,"result":true,...}`. Setelah itu, tiap ada yang `/start`
 - `api/auth/admin-login.js` — login terpisah pakai kredensial fixed buat akun admin, gak lewat Supabase sama sekali
 - `api/telegram/webhook.js` — nerima update dari bot Telegram (kayak `/start`), nyatet chat ID user
 - `api/proxy.js` — satu-satunya endpoint yang dipanggil browser buat visit/info/like; nyembunyiin URL asli pihak ketiga dan nge-enforce limit like 1x/12 jam di server
+- `api/jwt.js` — ambil JWT dari UID+password (satu akun atau bulk lewat file .txt/.json), butuh login, ada jeda 600ms antar-request pas mode bulk biar gak kena rate limit dari layanan JWT-nya
 - `public/index.html` — seluruh front-end (form auth + tool 3-tab)
 
 ## 6. Catatan keamanan
