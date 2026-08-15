@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     try {
       await sendTelegramMessage(
         chatId,
-        `Bot siap. Telegram ID Anda: ${chatId}\n\nGunakan ID ini saat mendaftar atau masuk di web.`
+        `Bot siap. Telegram ID Anda:\n\`${chatId}\`\n\nGunakan ID ini saat mendaftar atau masuk di web.`
       );
     } catch (err) {
       // Non-fatal — Telegram still gets a 200 either way

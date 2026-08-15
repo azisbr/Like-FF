@@ -256,6 +256,8 @@
   button.link-btn:hover { color: var(--accent); }
 
   .hint { font-size: 12px; color: var(--text-faint); margin-top: 10px; line-height: 1.5; }
+  .hint a { color: #4ea1f7; text-decoration: none; font-weight: 600; }
+  .hint a:hover, .hint a:active { text-decoration: underline; }
 
   .auth-gate {
     min-height: calc(100vh - 132px);
@@ -478,10 +480,6 @@
       <!-- REGISTER FORM -->
       <div id="registerForm" class="hidden">
         <div class="field">
-          <label class="field-label">Nama</label>
-          <input type="text" id="regName" placeholder="Nama tampilan">
-        </div>
-        <div class="field">
           <label class="field-label">Username</label>
           <input type="text" id="regUsername" placeholder="Username untuk login nanti">
         </div>
@@ -494,7 +492,7 @@
           <input type="password" id="regPassword" placeholder="Buat password">
         </div>
         <button class="primary" id="regRequestBtn">Kirim Kode ke Telegram</button>
-        <p class="hint">Buka bot Telegram, kirim <b>/start</b>, lalu masukkan Telegram ID numerik Anda di atas. Username dipakai untuk login nanti.</p>
+        <p class="hint">Buka <a href="https://t.me/senderlikebot" target="_blank" rel="noopener">bot Telegram</a>, kirim <b>/start</b>, lalu masukkan Telegram ID numerik Anda di atas. Username dipakai untuk login nanti.</p>
 
         <div id="regOtpBlock" class="hidden">
           <div class="field" style="margin-top:14px;">
@@ -656,12 +654,12 @@
 
   // ---------- Register ----------
   document.getElementById('regRequestBtn').addEventListener('click', async () => {
-    const displayName = document.getElementById('regName').value.trim();
     const username = document.getElementById('regUsername').value.trim();
+    const displayName = username;
     const telegramId = document.getElementById('regTelegramId').value.trim();
     const password = document.getElementById('regPassword').value;
 
-    if (!displayName || !username || !telegramId || !password) {
+    if (!username || !telegramId || !password) {
       showAuthError('Lengkapi semua kolom terlebih dahulu.');
       return;
     }

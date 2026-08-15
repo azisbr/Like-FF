@@ -14,9 +14,6 @@ export default async function handler(req, res) {
   if (!password || password.length < 6) {
     return res.status(400).json({ error: 'Password minimal 6 karakter.' });
   }
-  if (!displayName || displayName.trim().length < 2) {
-    return res.status(400).json({ error: 'Nama minimal 2 karakter.' });
-  }
 
   const supabase = supabaseAdmin();
   const usernameLower = String(username).toLowerCase();
@@ -78,7 +75,7 @@ export default async function handler(req, res) {
   try {
     await sendTelegramMessage(
       telegramId,
-      `Kode verifikasi pendaftaran Anda: ${otp}\n\nBerlaku 5 menit. Jangan bagikan kode ini ke siapa pun.`
+      `Kode verifikasi pendaftaran Anda:\n\`${otp}\`\n\nBerlaku 5 menit. Jangan bagikan kode ini ke siapa pun.`
     );
   } catch (err) {
     return res.status(400).json({ error: err.message });
