@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 
 // Server-only client using the secret/service_role key.
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set as Vercel Environment Variables.
@@ -34,3 +35,24 @@ export async function sendTelegramMessage(chatId, text) {
   }
   return data;
 }
+
+// Verifies an admin token issued by /api/auth/admin-login.js
+// Returns true only if the signature matches ADMIN_TOKEN_SECRET.
+export function verifyAdminToken(token) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return false;
+  const secret = process.env.ADMIN_TOKEN_SECRET;
+  if (!secret) return false;
+
+  const [payload, signature] = token.split('.');
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+
+  try {
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length) return false;
+    return crypto.timingSafeEqual(sigBuf, expBuf);
+  } catch {
+    return false;
+  }
+}
+

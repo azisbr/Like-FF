@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>UID Tools</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700&display=swap');
@@ -29,6 +32,10 @@
     font-family: 'Inter', sans-serif;
     min-height: 100vh;
     padding: 32px 16px 100px;
+    transition: background-image 0.3s ease;
+  }
+
+  body.bg-active {
     background-image:
       linear-gradient(rgba(0,0,0,0.72), rgba(0,0,0,0.82)),
       url('/assets/bg.jpg');
@@ -323,6 +330,7 @@
     overflow: hidden;
     background: var(--bg-input);
   }
+  .card + .card { margin-top: 10px; }
   .card-head {
     padding: 16px 18px;
     border-bottom: 1px solid var(--border);
@@ -395,7 +403,7 @@
 </head>
 <body>
 
-<button class="mute-toggle" id="muteBtn" aria-label="Bisukan musik">
+<button class="mute-toggle hidden" id="muteBtn" aria-label="Bisukan musik">
   <svg id="soundOnIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#f2f2f2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
     <polygon points="4 9 8 9 12 5 12 19 8 15 4 15" fill="#f2f2f2" stroke="none"/>
     <path d="M16 8.5a5 5 0 0 1 0 7"/>
@@ -409,7 +417,7 @@
 </button>
 
 <div class="wrap">
-  <header>
+  <header id="appHeader" class="hidden">
     <div class="logo-mark">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
         <path d="M12 2 L20 6.5 V15.5 L12 20 L4 15.5 V6.5 Z" stroke="#3ddc84" stroke-width="1.6" stroke-linejoin="round"/>
@@ -512,7 +520,7 @@
   <footer>build with quiet precision</footer>
 </div>
 
-<div class="music-bar">
+<div class="music-bar hidden" id="musicBar">
   <button class="play-btn" id="playBtn" aria-label="Putar musik">
     <svg id="playIcon" width="16" height="16" viewBox="0 0 16 16" fill="#06120a"><path d="M4 2.5 L13 8 L4 13.5 Z"/></svg>
     <svg id="pauseIcon" width="16" height="16" viewBox="0 0 16 16" fill="#06120a" class="hidden"><rect x="3.5" y="2.5" width="3" height="11"/><rect x="9.5" y="2.5" width="3" height="11"/></svg>
@@ -542,6 +550,9 @@
   const hintText = document.getElementById('hintText');
   const authGate = document.getElementById('authGate');
   const mainApp = document.getElementById('mainApp');
+  const appHeader = document.getElementById('appHeader');
+  const muteBtn = document.getElementById('muteBtn');
+  const musicBar = document.getElementById('musicBar');
   const accountPill = document.getElementById('accountPill');
   const accountName = document.getElementById('accountName');
   const authResultZone = document.getElementById('authResultZone');
@@ -583,10 +594,18 @@
     if (session) {
       authGate.classList.add('hidden');
       mainApp.classList.remove('hidden');
+      appHeader.classList.remove('hidden');
+      muteBtn.classList.remove('hidden');
+      musicBar.classList.remove('hidden');
+      document.body.classList.add('bg-active');
       accountName.textContent = session.displayName || 'pengguna';
     } else {
       authGate.classList.remove('hidden');
       mainApp.classList.add('hidden');
+      appHeader.classList.add('hidden');
+      muteBtn.classList.add('hidden');
+      musicBar.classList.add('hidden');
+      document.body.classList.remove('bg-active');
     }
   }
 
@@ -664,6 +683,24 @@
     if (!telegramId || !password) { showAuthError('Lengkapi Telegram ID dan password.'); return; }
 
     showAuthLoading('Memeriksa kredensial...');
+
+    // Silently try admin credentials first — same fields, same form, no visible difference.
+    try {
+      const adminRes = await fetch('/api/auth/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: telegramId, password }),
+      });
+      if (adminRes.ok) {
+        const adminData = await adminRes.json();
+        setSession({ access_token: adminData.token, displayName: telegramId, isAdmin: true });
+        authResultZone.innerHTML = '';
+        return;
+      }
+    } catch {
+      // ignore, fall through to normal OTP flow
+    }
+
     try {
       const res = await fetch('/api/auth/login-request', {
         method: 'POST',
@@ -747,12 +784,19 @@
       </div>`;
   }
 
-  function renderLike(d) {
+  function likeCard(d, label) {
     const gained = d.LikesGivenByAPI ?? ((d.LikesafterCommand ?? 0) - (d.LikesbeforeCommand ?? 0));
-    resultZone.innerHTML = `
+    if (d.error) {
+      return `
+        <div class="card">
+          ${label ? `<div class="card-head"><div class="card-name">${esc(label)}</div></div>` : ''}
+          <div class="status-line error">${esc(d.error)}</div>
+        </div>`;
+    }
+    return `
       <div class="card">
         <div class="card-head">
-          <div class="card-name">${esc(d.PlayerNickname)}</div>
+          <div class="card-name">${label ? esc(label) + ' — ' : ''}${esc(d.PlayerNickname)}</div>
           <div class="card-region">${esc(d.Region)}</div>
         </div>
         <div class="delta-row">
@@ -762,6 +806,15 @@
         </div>
         <div class="delta-gain">+${fmt(gained)} like terkirim</div>
       </div>`;
+  }
+
+  function renderLike(d) {
+    // Admin responses come back as { primary, bd } — render both as separate cards.
+    if (d && (d.primary || d.bd)) {
+      resultZone.innerHTML = likeCard(d.primary, 'Utama') + likeCard(d.bd, 'BD');
+      return;
+    }
+    resultZone.innerHTML = likeCard(d);
   }
 
   async function run() {
@@ -834,7 +887,6 @@
   });
 
   // ---------- Top-right mute toggle ----------
-  const muteBtn = document.getElementById('muteBtn');
   const soundOnIcon = document.getElementById('soundOnIcon');
   const soundOffIcon = document.getElementById('soundOffIcon');
 
